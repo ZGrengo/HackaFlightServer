@@ -1,6 +1,6 @@
-// Importamos las dependencias.
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 // Cargamos las variables de entorno.
 dotenv.config();
@@ -14,6 +14,8 @@ const {
     MYSQL_ADMIN,
     MYSQL_ADMIN_PASSWORD,
     MYSQL_ADMIN_EMAIL,
+    DB_SSL,
+    CA_CERT,
 } = process.env;
 
 // Variable que almacenará un grupo de conexiones con la base de datos.
@@ -31,11 +33,23 @@ const getPool = async () => {
     try {
         // Si no existen conexiones las creamos.
         if (!pool) {
+            // Configurar SSL si es necesario.
+            const sslOptions =
+                DB_SSL === 'true' && CA_CERT
+                    ? {
+                          ca: fs.readFileSync(CA_CERT), // Leer el archivo CA.pem
+                          rejectUnauthorized: false, // Acepta certificados autofirmados
+                      }
+                    : undefined;
+
             // Creamos una única conexión con el servidor MySQL.
             const dbConnection = await mysql.createConnection({
                 host: MYSQL_HOST,
                 user: MYSQL_USER,
                 password: MYSQL_PASSWORD,
+                port: 24180,
+                ssl: sslOptions, // Usar el certificado SSL si está habilitado
+                connectTimeout: 10000,
             });
 
             // Con dicha conexión vamos a crear la base de datos si no existe.
@@ -50,6 +64,9 @@ const getPool = async () => {
                 password: MYSQL_PASSWORD,
                 database: MYSQL_DATABASE,
                 timezone: 'Z',
+                ssl: sslOptions, // También usar el certificado SSL en el pool
+                connectTimeout: 10000, // 10 segundos de tiempo de espera para el pool
+                acquireTimeout: 10000, // 10 segundos para adquirir una conexión
             });
         }
 
